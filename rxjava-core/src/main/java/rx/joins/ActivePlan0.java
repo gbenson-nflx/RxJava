@@ -13,19 +13,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package rx.lang.scala
+package rx.joins;
 
-import rx.concurrency.CurrentThreadScheduler
+import java.util.HashMap;
+import java.util.Map;
 
 /**
- * Provides schedulers.
+ * Represents an activated plan.
  */
-package object concurrency {
-
-  // These classes are not exposed to Scala users, but are accessible through rx.lang.scala.concurrency.Schedulers:
-  
-  // rx.concurrency.CurrentThreadScheduler
-  // rx.concurrency.ExecutorScheduler
-  // rx.concurrency.ImmediateScheduler
-  // rx.concurrency.NewThreadScheduler
+public abstract class ActivePlan0 {
+    protected final Map<JoinObserver, JoinObserver> joinObservers = new HashMap<JoinObserver, JoinObserver>();
+    
+    public abstract void match();
+    
+    protected void addJoinObserver(JoinObserver joinObserver) {
+        joinObservers.put(joinObserver, joinObserver);
+    }
+    protected void dequeue() {
+        for (JoinObserver jo : joinObservers.values()) {
+            jo.dequeue();
+        }
+    }
 }
