@@ -26,6 +26,7 @@ public class MainActivity extends Activity {
 		launchIntents.add(new Intent(this, SimpleRxActivity.class));
 		launchIntents.add(new Intent(this, FileSystemActivity.class));
 		launchIntents.add(new Intent(this, DownloadActivity.class));
+		launchIntents.add(new Intent(this, WeatherActivity.class));
 
 		GridView gv = new GridView(this);
 		gv.setNumColumns(2);

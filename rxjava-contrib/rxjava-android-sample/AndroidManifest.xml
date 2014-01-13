@@ -41,5 +41,9 @@
             android:name="rx.android.sample.activities.DownloadActivity"
             />
 
-    </application>
+        <activity
+            android:name="rx.android.sample.activities.WeatherActivity"
+            />
+
+	</application>
 </manifest>

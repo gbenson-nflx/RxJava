@@ -36,6 +36,7 @@ public class DownloadActivity extends Activity {
 			@Override
 			public void onClick(View v) {
 				tv.setEnabled(false);
+
 				AndroidObservable
 					.fromActivity(
 						DownloadActivity.this,
