@@ -12,15 +12,17 @@ import rx.Observable;
 import rx.Observer;
 import rx.Subscription;
 import rx.android.concurrency.AndroidSchedulers;
+import rx.android.sample.R;
+import rx.android.sample.model.Observers;
 import rx.android.sample.model.WeatherData;
 import rx.android.sample.util.ThreadUtils;
 import rx.concurrency.Schedulers;
 import rx.subscriptions.Subscriptions;
-import rx.util.functions.Action0;
-import rx.util.functions.Action1;
 import rx.util.functions.Func1;
 import android.app.ListActivity;
+import android.content.res.Resources;
 import android.os.Bundle;
+import android.util.Log;
 import android.util.TypedValue;
 import android.view.View;
 import android.view.ViewGroup;
@@ -39,6 +41,7 @@ public class WeatherActivity extends ListActivity {
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
+    	Log.v(TAG, "Num threads: " + Schedulers.threadPoolForIO().degreeOfParallelism());
 
 		listView = new ListView(this);
 		listView.setId(android.R.id.list);
@@ -47,10 +50,11 @@ public class WeatherActivity extends ListActivity {
 		setListAdapter(adapter);
 
 		setContentView(listView);
-		getWeatherData(Arrays.asList("San Francisco", "Sydney", "London"));
+		getWeatherForCities(Arrays.asList(
+				"San Francisco", "Sydney", "London", "foobar"));
 	}
 
-	private void getWeatherData(List<String> cities) {
+	private void getWeatherForCities(List<String> cities) {
 		Observable<WeatherData> obs = Observable.from(cities)
 		        .mapMany(new Func1<String, Observable<WeatherData>>() {
 		            @Override
@@ -58,28 +62,16 @@ public class WeatherActivity extends ListActivity {
 		                return ApiManager.getWeatherData(s);
 		            }
 		        })
-		        .subscribeOn(Schedulers.threadPoolForIO())
 		        .observeOn(AndroidSchedulers.mainThread());
 
-		obs.subscribe(
-		new Action1<WeatherData>() {
-            @Override
-            public void call(WeatherData weatherData) {
-            	ThreadUtils.assertOnMain();
-                weather.put(weatherData.name, weatherData);
-                adapter.notifyDataSetChanged();
-            }
-        },
-        new Action1<Throwable>() {
+		obs.subscribe(new Observers.LoggingObserver<WeatherData>(TAG) {
 			@Override
-			public void call(Throwable error) {
+			public void onNext(WeatherData data) {
+				super.onNext(data);
+				weather.put(data.name, data);
+				adapter.notifyDataSetChanged();
 			}
-        },
-        new Action0() {
-			@Override
-			public void call() {
-			}
-        });
+		});
 	}
 
 	private class WeatherAdapter extends BaseAdapter {
@@ -104,10 +96,13 @@ public class WeatherActivity extends ListActivity {
 			TextView tv = (TextView) convertView;
 			if (tv == null) {
 				tv = new TextView(WeatherActivity.this);
+				Resources r = getResources();
+				int p = (int)r.getDimension(R.dimen.content_padding);
+				tv.setPadding(p, p, p, p);
 				tv.setTextSize(TypedValue.applyDimension(
 						TypedValue.COMPLEX_UNIT_DIP,
 						16,
-						getResources().getDisplayMetrics()));
+						r.getDisplayMetrics()));
 
 				convertView = tv;
 			}
@@ -136,7 +131,11 @@ public class WeatherActivity extends ListActivity {
 	            public Subscription onSubscribe(Observer<? super WeatherData> observer) {
 	            	ThreadUtils.assertNotOnMain();
 	                try {
+	                	Log.v(TAG, "I'm sleepy... " + Thread.currentThread().getName());
+	                	Thread.sleep(5000);
+	                	Log.v(TAG, "Making remote call...");
 	                    observer.onNext(apiManager.getWeather(city, "metric"));
+	                	Log.v(TAG, "Request completed");
 	                    observer.onCompleted();
 	                }
 	                catch (Exception e) {
