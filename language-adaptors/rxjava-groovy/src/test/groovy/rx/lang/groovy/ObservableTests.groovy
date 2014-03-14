@@ -15,28 +15,21 @@
  */
 package rx.lang.groovy
 
-import static org.mockito.Matchers.*;
-import static org.mockito.Mockito.*;
+import static org.junit.Assert.*
+import static org.mockito.Matchers.*
+import static org.mockito.Mockito.*
 
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Map;
+import org.junit.Before
+import org.junit.Test
+import org.mockito.Mock
+import org.mockito.MockitoAnnotations
 
-import org.junit.Before;
-import org.junit.Test;
-import static org.junit.Assert.*;
-
-import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
-
-import rx.Notification;
-import rx.Observable;
-import rx.Observable.OnSubscribeFunc;
-import rx.Observer;
-import rx.Subscription;
-import rx.observables.GroupedObservable;
-import rx.subscriptions.Subscriptions;
-import rx.util.functions.Func1;
+import rx.Notification
+import rx.Observable
+import rx.Observer
+import rx.Subscription
+import rx.Observable.OnSubscribeFunc
+import rx.subscriptions.Subscriptions
 
 def class ObservableTests {
 
@@ -278,7 +271,7 @@ def class ObservableTests {
         assertEquals("one", s)
     }
 
-    @Test(expected = IllegalStateException.class)
+    @Test(expected = IllegalArgumentException.class)
     public void testSingle2() {
         Observable.from("one", "two").toBlockingObservable().single({ x -> x.length() == 3})
     }
@@ -345,6 +338,143 @@ def class ObservableTests {
           assertEquals(6, count);
     }
     
+    @Test
+    public void testToMap1() {
+        Map actual = new HashMap();
+        
+        Observable.from("a", "bb", "ccc", "dddd")
+        .toMap({String s -> s.length()})
+        .toBlockingObservable()
+        .forEach({s -> actual.putAll(s); });
+        
+        Map expected = new HashMap();
+        expected.put(1, "a");
+        expected.put(2, "bb");
+        expected.put(3, "ccc");
+        expected.put(4, "dddd");
+        
+        assertEquals(expected, actual);
+    }
+
+    @Test
+    public void testToMap2() {
+        Map actual = new HashMap();
+        
+        Observable.from("a", "bb", "ccc", "dddd")
+        .toMap({String s -> s.length()}, {String s -> s + s})
+        .toBlockingObservable()
+        .forEach({s -> actual.putAll(s); });
+        
+        Map expected = new HashMap();
+        expected.put(1, "aa");
+        expected.put(2, "bbbb");
+        expected.put(3, "cccccc");
+        expected.put(4, "dddddddd");
+        
+        assertEquals(expected, actual);
+    }
+
+    @Test
+    public void testToMap3() {
+        Map actual = new HashMap();
+        
+        LinkedHashMap last3 = new LinkedHashMap() {
+            public boolean removeEldestEntry(Map.Entry e) {
+                return size() > 3;
+            }
+        };
+        
+        Observable.from("a", "bb", "ccc", "dddd")
+        .toMap({String s -> s.length()}, {String s -> s + s}, { last3 })
+        .toBlockingObservable()
+        .forEach({s -> actual.putAll(s); });
+        
+        Map expected = new HashMap();
+        expected.put(2, "bbbb");
+        expected.put(3, "cccccc");
+        expected.put(4, "dddddddd");
+        
+        assertEquals(expected, actual);
+    }
+    @Test
+    public void testToMultimap1() {
+        Map actual = new HashMap();
+        
+        Observable.from("a", "b", "cc", "dd")
+        .toMultimap({String s -> s.length()})
+        .toBlockingObservable()
+        .forEach({s -> actual.putAll(s); });
+        
+        Map expected = new HashMap();
+        
+        expected.put(1, Arrays.asList("a", "b"));
+        expected.put(2, Arrays.asList("cc", "dd"));
+        
+        assertEquals(expected, actual);
+    }
+
+    @Test
+    public void testToMultimap2() {
+        Map actual = new HashMap();
+        
+        Observable.from("a", "b", "cc", "dd")
+        .toMultimap({String s -> s.length()}, {String s -> s + s})
+        .toBlockingObservable()
+        .forEach({s -> actual.putAll(s); });
+        
+        Map expected = new HashMap();
+        
+        expected.put(1, Arrays.asList("aa", "bb"));
+        expected.put(2, Arrays.asList("cccc", "dddd"));
+        
+        assertEquals(expected, actual);
+    }
+
+    @Test
+    public void testToMultimap3() {
+        Map actual = new HashMap();
+        
+        LinkedHashMap last1 = new LinkedHashMap() {
+            public boolean removeEldestEntry(Map.Entry e) {
+                return size() > 1;
+            }
+        };
+        
+        Observable.from("a", "b", "cc", "dd")
+        .toMultimap({String s -> s.length()}, {String s -> s + s}, { last1 })
+        .toBlockingObservable()
+        .forEach({s -> actual.putAll(s); });
+        
+        Map expected = new HashMap();
+        
+        expected.put(2, Arrays.asList("cccc", "dddd"));
+        
+        assertEquals(expected, actual);
+    }
+
+    @Test
+    public void testToMultimap4() {
+        Map actual = new HashMap();
+        
+        LinkedHashMap last1 = new LinkedHashMap() {
+            public boolean removeEldestEntry(Map.Entry e) {
+                return size() > 2;
+            }
+        };
+        
+        Observable.from("a", "b", "cc", "dd", "eee", "eee")
+        .toMultimap({String s -> s.length()}, {String s -> s + s}, { last1 }, 
+            {i -> i == 2 ? new ArrayList() : new HashSet() })
+        .toBlockingObservable()
+        .forEach({s -> actual.putAll(s); });
+        
+        Map expected = new HashMap();
+        
+        expected.put(2, Arrays.asList("cccc", "dddd"));
+        expected.put(3, new HashSet(Arrays.asList("eeeeee")));
+        
+        assertEquals(expected, actual);
+    }
 
     def class AsyncObservable implements OnSubscribeFunc {
 
@@ -400,12 +530,7 @@ def class ObservableTests {
             observer.onNext("hello_" + count);
             observer.onCompleted();
 
-            return new Subscription() {
-
-                public void unsubscribe() {
-                    // unregister ... will never be called here since we are executing synchronously
-                }
-            };
+            return Subscriptions.empty();
         }
     }
 }

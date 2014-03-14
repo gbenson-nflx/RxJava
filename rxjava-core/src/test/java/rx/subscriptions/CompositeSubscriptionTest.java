@@ -1,5 +1,5 @@
 /**
- * Copyright 2013 Netflix, Inc.
+ * Copyright 2014 Netflix, Inc.
  * 
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,12 +17,15 @@ package rx.subscriptions;
 
 import static org.junit.Assert.*;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.Test;
 
 import rx.Subscription;
-import rx.util.CompositeException;
+import rx.exceptions.CompositeException;
 
 public class CompositeSubscriptionTest {
 
@@ -36,6 +39,11 @@ public class CompositeSubscriptionTest {
             public void unsubscribe() {
                 counter.incrementAndGet();
             }
+
+            @Override
+            public boolean isUnsubscribed() {
+                return false;
+            }
         });
 
         s.add(new Subscription() {
@@ -44,11 +52,63 @@ public class CompositeSubscriptionTest {
             public void unsubscribe() {
                 counter.incrementAndGet();
             }
+
+            @Override
+            public boolean isUnsubscribed() {
+                return false;
+            }
         });
 
         s.unsubscribe();
 
         assertEquals(2, counter.get());
+    }
+
+    @Test(timeout = 1000)
+    public void shouldUnsubscribeAll() throws InterruptedException {
+        final AtomicInteger counter = new AtomicInteger();
+        final CompositeSubscription s = new CompositeSubscription();
+
+        final int count = 10;
+        final CountDownLatch start = new CountDownLatch(1);
+        for (int i = 0; i < count; i++) {
+            s.add(new Subscription() {
+
+                @Override
+                public void unsubscribe() {
+                    counter.incrementAndGet();
+                }
+
+                @Override
+                public boolean isUnsubscribed() {
+                    return false;
+                }
+            });
+        }
+
+        final List<Thread> threads = new ArrayList<Thread>();
+        for (int i = 0; i < count; i++) {
+            final Thread t = new Thread() {
+                @Override
+                public void run() {
+                    try {
+                        start.await();
+                        s.unsubscribe();
+                    } catch (final InterruptedException e) {
+                        fail(e.getMessage());
+                    }
+                }
+            };
+            t.start();
+            threads.add(t);
+        }
+
+        start.countDown();
+        for (final Thread t : threads) {
+            t.join();
+        }
+
+        assertEquals(count, counter.get());
     }
 
     @Test
@@ -61,6 +121,11 @@ public class CompositeSubscriptionTest {
             public void unsubscribe() {
                 throw new RuntimeException("failed on first one");
             }
+
+            @Override
+            public boolean isUnsubscribed() {
+                return false;
+            }
         });
 
         s.add(new Subscription() {
@@ -69,6 +134,66 @@ public class CompositeSubscriptionTest {
             public void unsubscribe() {
                 counter.incrementAndGet();
             }
+
+            @Override
+            public boolean isUnsubscribed() {
+                return false;
+            }
+        });
+
+        try {
+            s.unsubscribe();
+            fail("Expecting an exception");
+        } catch (RuntimeException e) {
+            // we expect this
+            assertEquals(e.getMessage(), "failed on first one");
+        }
+
+        // we should still have unsubscribed to the second one
+        assertEquals(1, counter.get());
+    }
+
+    @Test
+    public void testCompositeException() {
+        final AtomicInteger counter = new AtomicInteger();
+        CompositeSubscription s = new CompositeSubscription();
+        s.add(new Subscription() {
+
+            @Override
+            public void unsubscribe() {
+                throw new RuntimeException("failed on first one");
+            }
+
+            @Override
+            public boolean isUnsubscribed() {
+                return false;
+            }
+        });
+
+        s.add(new Subscription() {
+
+            @Override
+            public void unsubscribe() {
+                throw new RuntimeException("failed on second one too");
+            }
+
+            @Override
+            public boolean isUnsubscribed() {
+                return false;
+            }
+        });
+
+        s.add(new Subscription() {
+
+            @Override
+            public void unsubscribe() {
+                counter.incrementAndGet();
+            }
+
+            @Override
+            public boolean isUnsubscribed() {
+                return false;
+            }
         });
 
         try {
@@ -76,7 +201,7 @@ public class CompositeSubscriptionTest {
             fail("Expecting an exception");
         } catch (CompositeException e) {
             // we expect this
-            assertEquals(1, e.getExceptions().size());
+            assertEquals(e.getExceptions().size(), 2);
         }
 
         // we should still have unsubscribed to the second one
@@ -113,7 +238,7 @@ public class CompositeSubscriptionTest {
         s.clear();
 
         assertTrue(s1.isUnsubscribed());
-        assertTrue(s1.isUnsubscribed());
+        assertTrue(s2.isUnsubscribed());
         assertFalse(s.isUnsubscribed());
 
         BooleanSubscription s3 = new BooleanSubscription();
@@ -135,11 +260,63 @@ public class CompositeSubscriptionTest {
             public void unsubscribe() {
                 counter.incrementAndGet();
             }
+
+            @Override
+            public boolean isUnsubscribed() {
+                return false;
+            }
         });
 
         s.unsubscribe();
         s.unsubscribe();
         s.unsubscribe();
+
+        // we should have only unsubscribed once
+        assertEquals(1, counter.get());
+    }
+
+    @Test(timeout = 1000)
+    public void testUnsubscribeIdempotenceConcurrently()
+            throws InterruptedException {
+        final AtomicInteger counter = new AtomicInteger();
+        final CompositeSubscription s = new CompositeSubscription();
+
+        final int count = 10;
+        final CountDownLatch start = new CountDownLatch(1);
+        s.add(new Subscription() {
+
+            @Override
+            public void unsubscribe() {
+                counter.incrementAndGet();
+            }
+
+            @Override
+            public boolean isUnsubscribed() {
+                return false;
+            }
+        });
+
+        final List<Thread> threads = new ArrayList<Thread>();
+        for (int i = 0; i < count; i++) {
+            final Thread t = new Thread() {
+                @Override
+                public void run() {
+                    try {
+                        start.await();
+                        s.unsubscribe();
+                    } catch (final InterruptedException e) {
+                        fail(e.getMessage());
+                    }
+                }
+            };
+            t.start();
+            threads.add(t);
+        }
+
+        start.countDown();
+        for (final Thread t : threads) {
+            t.join();
+        }
 
         // we should have only unsubscribed once
         assertEquals(1, counter.get());

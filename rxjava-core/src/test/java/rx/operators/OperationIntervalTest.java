@@ -1,12 +1,12 @@
 /**
- * Copyright 2013 Netflix, Inc.
- *
+ * Copyright 2014 Netflix, Inc.
+ * 
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * 
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -27,8 +27,8 @@ import org.mockito.InOrder;
 import rx.Observable;
 import rx.Observer;
 import rx.Subscription;
-import rx.concurrency.TestScheduler;
 import rx.observables.ConnectableObservable;
+import rx.schedulers.TestScheduler;
 
 public class OperationIntervalTest {
 
@@ -66,7 +66,7 @@ public class OperationIntervalTest {
         sub.unsubscribe();
         scheduler.advanceTimeTo(4, TimeUnit.SECONDS);
         verify(observer, never()).onNext(2L);
-        verify(observer, times(1)).onCompleted();
+        verify(observer, never()).onCompleted();
         verify(observer, never()).onError(any(Throwable.class));
     }
 
@@ -101,11 +101,11 @@ public class OperationIntervalTest {
         scheduler.advanceTimeTo(4, TimeUnit.SECONDS);
 
         verify(observer, never()).onNext(2L);
-        verify(observer, times(1)).onCompleted();
+        verify(observer, never()).onCompleted();
         verify(observer, never()).onError(any(Throwable.class));
 
         verify(observer2, never()).onNext(2L);
-        verify(observer2, times(1)).onCompleted();
+        verify(observer2, never()).onCompleted();
         verify(observer2, never()).onError(any(Throwable.class));
     }
 
@@ -141,11 +141,11 @@ public class OperationIntervalTest {
         sub2.unsubscribe();
 
         inOrder1.verify(observer, never()).onNext(anyLong());
-        inOrder1.verify(observer, times(1)).onCompleted();
+        inOrder1.verify(observer, never()).onCompleted();
         verify(observer, never()).onError(any(Throwable.class));
 
         inOrder2.verify(observer2, never()).onNext(anyLong());
-        inOrder2.verify(observer2, times(1)).onCompleted();
+        inOrder2.verify(observer2, never()).onCompleted();
         verify(observer2, never()).onError(any(Throwable.class));
     }
 

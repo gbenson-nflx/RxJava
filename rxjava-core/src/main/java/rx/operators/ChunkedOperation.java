@@ -1,5 +1,5 @@
 /**
- * Copyright 2013 Netflix, Inc.
+ * Copyright 2014 Netflix, Inc.
  * 
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,13 +27,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 import rx.Observable;
 import rx.Observer;
 import rx.Scheduler;
+import rx.Scheduler.Inner;
 import rx.Subscription;
-import rx.util.Closing;
-import rx.util.Opening;
-import rx.util.functions.Action0;
-import rx.util.functions.Action1;
-import rx.util.functions.Func0;
-import rx.util.functions.Func1;
+import rx.functions.Action1;
+import rx.functions.Func0;
+import rx.functions.Func1;
 
 /**
  * The base class for operations that break observables into "chunks". Currently buffers and windows.
@@ -150,7 +148,7 @@ public class ChunkedOperation {
      *            The type of object all internal {@link rx.operators.ChunkedOperation.Chunk} objects record.
      *            <C> The type of object being tracked by the {@link Chunk}
      */
-    protected static class TimeAndSizeBasedChunks<T, C> extends Chunks<T, C> {
+    protected static class TimeAndSizeBasedChunks<T, C> extends Chunks<T, C> implements Subscription {
 
         private final ConcurrentMap<Chunk<T, C>, Subscription> subscriptions = new ConcurrentHashMap<Chunk<T, C>, Subscription>();
 
@@ -158,6 +156,7 @@ public class ChunkedOperation {
         private final long maxTime;
         private final TimeUnit unit;
         private final int maxSize;
+        private volatile boolean unsubscribed = false;
 
         public TimeAndSizeBasedChunks(Observer<? super C> observer, Func0<? extends Chunk<T, C>> chunkMaker, int maxSize, long maxTime, TimeUnit unit, Scheduler scheduler) {
             super(observer, chunkMaker);
@@ -170,9 +169,9 @@ public class ChunkedOperation {
         @Override
         public Chunk<T, C> createChunk() {
             final Chunk<T, C> chunk = super.createChunk();
-            subscriptions.put(chunk, scheduler.schedule(new Action0() {
+            subscriptions.put(chunk, scheduler.schedule(new Action1<Inner>() {
                 @Override
-                public void call() {
+                public void call(Inner inner) {
                     emitChunk(chunk);
                 }
             }, maxTime, unit));
@@ -209,6 +208,19 @@ public class ChunkedOperation {
                 }
             }
         }
+
+        @Override
+        public void unsubscribe() {
+            unsubscribed = true;
+            for (Subscription s : subscriptions.values()) {
+                s.unsubscribe();
+            }
+        }
+
+        @Override
+        public boolean isUnsubscribed() {
+            return unsubscribed;
+        }
     }
 
     /**
@@ -220,13 +232,14 @@ public class ChunkedOperation {
      *            The type of object all internal {@link rx.operators.ChunkedOperation.Chunk} objects record.
      *            <C> The type of object being tracked by the {@link Chunk}
      */
-    protected static class TimeBasedChunks<T, C> extends OverlappingChunks<T, C> {
+    protected static class TimeBasedChunks<T, C> extends OverlappingChunks<T, C> implements Subscription {
 
         private final ConcurrentMap<Chunk<T, C>, Subscription> subscriptions = new ConcurrentHashMap<Chunk<T, C>, Subscription>();
 
         private final Scheduler scheduler;
         private final long time;
         private final TimeUnit unit;
+        private volatile boolean unsubscribed = false;
 
         public TimeBasedChunks(Observer<? super C> observer, Func0<? extends Chunk<T, C>> chunkMaker, long time, TimeUnit unit, Scheduler scheduler) {
             super(observer, chunkMaker);
@@ -238,9 +251,9 @@ public class ChunkedOperation {
         @Override
         public Chunk<T, C> createChunk() {
             final Chunk<T, C> chunk = super.createChunk();
-            subscriptions.put(chunk, scheduler.schedule(new Action0() {
+            subscriptions.put(chunk, scheduler.schedule(new Action1<Inner>() {
                 @Override
-                public void call() {
+                public void call(Inner inner) {
                     emitChunk(chunk);
                 }
             }, time, unit));
@@ -252,6 +265,20 @@ public class ChunkedOperation {
             subscriptions.remove(chunk);
             super.emitChunk(chunk);
         }
+
+        @Override
+        public void unsubscribe() {
+            unsubscribed = true;
+            for (Subscription s : subscriptions.values()) {
+                s.unsubscribe();
+            }
+        }
+
+        @Override
+        public boolean isUnsubscribed() {
+            return unsubscribed;
+        }
+
     }
 
     /**
@@ -443,19 +470,19 @@ public class ChunkedOperation {
     /**
      * This {@link rx.operators.ChunkedOperation.ChunkCreator} creates a new {@link rx.operators.ChunkedOperation.Chunk} whenever it receives an
      * object from the provided {@link rx.Observable} created with the
-     * chunkClosingSelector {@link rx.util.functions.Func0}.
+     * chunkClosingSelector {@link rx.functions.Func0}.
      * 
      * @param <T>
      *            The type of object all internal {@link rx.operators.ChunkedOperation.Chunk} objects record.
      *            <C> The type of object being tracked by the {@link Chunk}
      */
-    protected static class ObservableBasedSingleChunkCreator<T, C> implements ChunkCreator {
+    protected static class ObservableBasedSingleChunkCreator<T, C, TClosing> implements ChunkCreator {
 
         private final SafeObservableSubscription subscription = new SafeObservableSubscription();
-        private final Func0<? extends Observable<? extends Closing>> chunkClosingSelector;
+        private final Func0<? extends Observable<? extends TClosing>> chunkClosingSelector;
         private final NonOverlappingChunks<T, C> chunks;
 
-        public ObservableBasedSingleChunkCreator(NonOverlappingChunks<T, C> chunks, Func0<? extends Observable<? extends Closing>> chunkClosingSelector) {
+        public ObservableBasedSingleChunkCreator(NonOverlappingChunks<T, C> chunks, Func0<? extends Observable<? extends TClosing>> chunkClosingSelector) {
             this.chunks = chunks;
             this.chunkClosingSelector = chunkClosingSelector;
 
@@ -464,10 +491,10 @@ public class ChunkedOperation {
         }
 
         private void listenForChunkEnd() {
-            Observable<? extends Closing> closingObservable = chunkClosingSelector.call();
-            closingObservable.subscribe(new Action1<Closing>() {
+            Observable<? extends TClosing> closingObservable = chunkClosingSelector.call();
+            closingObservable.subscribe(new Action1<TClosing>() {
                 @Override
-                public void call(Closing closing) {
+                public void call(TClosing closing) {
                     chunks.emitAndReplaceChunk();
                     listenForChunkEnd();
                 }
@@ -489,26 +516,26 @@ public class ChunkedOperation {
      * This {@link rx.operators.ChunkedOperation.ChunkCreator} creates a new {@link rx.operators.ChunkedOperation.Chunk} whenever it receives
      * an object from the provided chunkOpenings {@link rx.Observable}, and closes the corresponding {@link rx.operators.ChunkedOperation.Chunk} object when it receives an object from the provided
      * {@link rx.Observable} created
-     * with the chunkClosingSelector {@link rx.util.functions.Func1}.
+     * with the chunkClosingSelector {@link rx.functions.Func1}.
      * 
      * @param <T>
      *            The type of object all internal {@link rx.operators.ChunkedOperation.Chunk} objects record.
      *            <C> The type of object being tracked by the {@link Chunk}
      */
-    protected static class ObservableBasedMultiChunkCreator<T, C> implements ChunkCreator {
+    protected static class ObservableBasedMultiChunkCreator<T, C, TOpening, TClosing> implements ChunkCreator {
 
         private final SafeObservableSubscription subscription = new SafeObservableSubscription();
 
-        public ObservableBasedMultiChunkCreator(final OverlappingChunks<T, C> chunks, Observable<? extends Opening> openings, final Func1<Opening, ? extends Observable<? extends Closing>> chunkClosingSelector) {
-            subscription.wrap(openings.subscribe(new Action1<Opening>() {
+        public ObservableBasedMultiChunkCreator(final OverlappingChunks<T, C> chunks, Observable<? extends TOpening> openings, final Func1<? super TOpening, ? extends Observable<? extends TClosing>> chunkClosingSelector) {
+            subscription.wrap(openings.subscribe(new Action1<TOpening>() {
                 @Override
-                public void call(Opening opening) {
+                public void call(TOpening opening) {
                     final Chunk<T, C> chunk = chunks.createChunk();
-                    Observable<? extends Closing> closingObservable = chunkClosingSelector.call(opening);
+                    Observable<? extends TClosing> closingObservable = chunkClosingSelector.call(opening);
 
-                    closingObservable.subscribe(new Action1<Closing>() {
+                    closingObservable.subscribe(new Action1<TClosing>() {
                         @Override
-                        public void call(Closing closing) {
+                        public void call(TClosing closing) {
                             chunks.emitChunk(chunk);
                         }
                     });
@@ -540,18 +567,18 @@ public class ChunkedOperation {
         private final SafeObservableSubscription subscription = new SafeObservableSubscription();
 
         public TimeBasedChunkCreator(final NonOverlappingChunks<T, C> chunks, long time, TimeUnit unit, Scheduler scheduler) {
-            this.subscription.wrap(scheduler.schedulePeriodically(new Action0() {
+            this.subscription.wrap(scheduler.schedulePeriodically(new Action1<Inner>() {
                 @Override
-                public void call() {
+                public void call(Inner inner) {
                     chunks.emitAndReplaceChunk();
                 }
             }, 0, time, unit));
         }
 
         public TimeBasedChunkCreator(final OverlappingChunks<T, C> chunks, long time, TimeUnit unit, Scheduler scheduler) {
-            this.subscription.wrap(scheduler.schedulePeriodically(new Action0() {
+            this.subscription.wrap(scheduler.schedulePeriodically(new Action1<Inner>() {
                 @Override
-                public void call() {
+                public void call(Inner inner) {
                     chunks.createChunk();
                 }
             }, 0, time, unit));

@@ -1,5 +1,5 @@
 /**
- * Copyright 2013 Netflix, Inc.
+ * Copyright 2014 Netflix, Inc.
  * 
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,6 +23,8 @@ import rx.Observable;
 import rx.Observable.OnSubscribeFunc;
 import rx.Observer;
 import rx.Subscription;
+import rx.functions.Action0;
+import rx.subscriptions.Subscriptions;
 
 /**
  * Returns an Observable that emits the items emitted by two or more Observables, one after the
@@ -51,7 +53,12 @@ public final class OperationConcat {
     }
 
     public static <T> OnSubscribeFunc<T> concat(final Observable<? extends Observable<? extends T>> sequences) {
-        return new Concat<T>(sequences);
+        return new OnSubscribeFunc<T>() {
+            @Override
+            public Subscription onSubscribe(Observer<? super T> t1) {
+                return new Concat<T>(sequences).onSubscribe(t1);
+            }
+        };
     }
 
     private static class Concat<T> implements OnSubscribeFunc<T> {
@@ -121,8 +128,12 @@ public final class OperationConcat {
                 @Override
                 public void onError(Throwable e) {
                     if (completedOrErred.compareAndSet(false, true)) {
-                        if (innerSubscription != null) {
-                            innerSubscription.unsubscribe();
+                        Subscription q;
+                        synchronized (nextSequences) {
+                            q = innerSubscription;
+                        }
+                        if (q != null) {
+                            q.unsubscribe();
                         }
                         observer.onError(e);
                     }
@@ -131,7 +142,11 @@ public final class OperationConcat {
                 @Override
                 public void onCompleted() {
                     allSequencesReceived.set(true);
-                    if (innerSubscription == null) {
+                    Subscription q;
+                    synchronized (nextSequences) {
+                        q = innerSubscription;
+                    }
+                    if (q == null) {
                         // We are not subscribed to any sequence, and none are coming anymore
                         if (completedOrErred.compareAndSet(false, true)) {
                             observer.onCompleted();
@@ -140,16 +155,19 @@ public final class OperationConcat {
                 }
             }));
 
-            return new Subscription() {
+            return Subscriptions.create(new Action0() {
                 @Override
-                public void unsubscribe() {
+                public void call() {
+                    Subscription q;
                     synchronized (nextSequences) {
-                        if (innerSubscription != null)
-                            innerSubscription.unsubscribe();
-                        outerSubscription.unsubscribe();
+                        q = innerSubscription;
                     }
+                    if (q != null) {
+                        q.unsubscribe();
+                    }
+                    outerSubscription.unsubscribe();
                 }
-            };
+            });
         }
     }
 }

@@ -21,8 +21,9 @@ import scala.concurrent.duration._
 object Olympics {
   case class Medal(val year: Int, val games: String, val discipline: String, val medal: String, val athlete: String, val country: String)
 
-  def mountainBikeMedals: Observable[Medal] = Observable(
-    Observable(
+  def mountainBikeMedals: Observable[Medal] = Observable.items(
+    duration(100 millis), // a short delay because medals are only awarded some time after the Games began
+    Observable.items(
       Medal(1996, "Atlanta 1996", "cross-country men", "Gold", "Bart BRENTJENS", "Netherlands"),
       Medal(1996, "Atlanta 1996", "cross-country women", "Gold", "Paola PEZZO", "Italy"),
       Medal(1996, "Atlanta 1996", "cross-country men", "Silver", "Thomas FRISCHKNECHT", "Switzerland"),
@@ -31,7 +32,7 @@ object Olympics {
       Medal(1996, "Atlanta 1996", "cross-country women", "Bronze", "Susan DEMATTEI", "United States of America")
     ),
     fourYearsEmpty,
-    Observable(
+    Observable.items(
       Medal(2000, "Sydney 2000", "cross-country women", "Gold", "Paola PEZZO", "Italy"),
       Medal(2000, "Sydney 2000", "cross-country women", "Silver", "Barbara BLATTER", "Switzerland"),
       Medal(2000, "Sydney 2000", "cross-country women", "Bronze", "Marga FULLANA", "Spain"),
@@ -40,7 +41,7 @@ object Olympics {
       Medal(2000, "Sydney 2000", "cross-country men", "Bronze", "Christoph SAUSER", "Switzerland")
     ),
     fourYearsEmpty,
-    Observable(
+    Observable.items(
       Medal(2004, "Athens 2004", "cross-country men", "Gold", "Julien ABSALON", "France"),
       Medal(2004, "Athens 2004", "cross-country men", "Silver", "Jose Antonio HERMIDA RAMOS", "Spain"),
       Medal(2004, "Athens 2004", "cross-country men", "Bronze", "Bart BRENTJENS", "Netherlands"),
@@ -49,7 +50,7 @@ object Olympics {
       Medal(2004, "Athens 2004", "cross-country women", "Bronze", "Sabine SPITZ", "Germany")
     ),
     fourYearsEmpty,
-    Observable(
+    Observable.items(
       Medal(2008, "Beijing 2008", "cross-country women", "Gold", "Sabine SPITZ", "Germany"),
       Medal(2008, "Beijing 2008", "cross-country women", "Silver", "Maja WLOSZCZOWSKA", "Poland"),
       Medal(2008, "Beijing 2008", "cross-country women", "Bronze", "Irina KALENTYEVA", "Russian Federation"),
@@ -58,7 +59,7 @@ object Olympics {
       Medal(2008, "Beijing 2008", "cross-country men", "Bronze", "Nino SCHURTER", "Switzerland")
     ),
     fourYearsEmpty,
-    Observable(
+    Observable.items(
       Medal(2012, "London 2012", "cross-country men", "Gold", "Jaroslav KULHAVY", "Czech Republic"),
       Medal(2012, "London 2012", "cross-country men", "Silver", "Nino SCHURTER", "Switzerland"),
       Medal(2012, "London 2012", "cross-country men", "Bronze", "Marco Aurelio FONTANA", "Italy"),
@@ -69,18 +70,33 @@ object Olympics {
   ).concat
 
   // speed it up :D
-  val fourYears = 4000.millis
+  val oneYear = 1000.millis
 
-  val neverUsedDummyMedal = Medal(3333, "?", "?", "?", "?", "?")
+  //val neverUsedDummyMedal = Medal(3333, "?", "?", "?", "?", "?")
 
-  def fourYearsEmpty: Observable[Medal] = {
+  /** runs an infinite loop, and returns Bottom type (Nothing) */
+  def getNothing: Nothing = {
+    println("You shouldn't have called this method ;-)")
+    getNothing
+  }
+  
+  /** returns an Observable which emits no elements and completes after a duration of d */
+  def duration(d: Duration): Observable[Nothing] = Observable.interval(d).take(1).filter(_ => false).map(_ => getNothing)
+  
+  def fourYearsEmpty: Observable[Medal] = duration(4*oneYear)
+
+  def yearTicks: Observable[Int] = 
+    (Observable.from(1996 to 2014) zip (Observable.items(-1) ++ Observable.interval(oneYear))).map(_._1)
+  
+  /*
+  def fourYearsEmptyOld: Observable[Medal] = {
     // TODO this should return an observable which emits nothing during fourYears and then completes
     // Because of https://github.com/Netflix/RxJava/issues/388, we get non-terminating tests
     // And this https://github.com/Netflix/RxJava/pull/289#issuecomment-24738668 also causes problems
     // So we don't use this:
-    // Observable.interval(fourYears).take(1).map(i => neverUsedDummyMedal).filter(m => false)
+    Observable.interval(fourYears).take(1).map(i => neverUsedDummyMedal).filter(m => false)
     // But we just return empty, which completes immediately
-    Observable()
-  }
+    // Observable.empty
+  }*/
 
 }

@@ -1,5 +1,5 @@
 /**
- * Copyright 2013 Netflix, Inc.
+ * Copyright 2014 Netflix, Inc.
  * 
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
  */
 package rx.operators;
 
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
@@ -120,6 +121,9 @@ public class OperationToFuture {
             private T getValue() throws ExecutionException {
                 if (error.get() != null) {
                     throw new ExecutionException("Observable onError", error.get());
+                } else if (cancelled) {
+                    // Contract of Future.get() requires us to throw this:
+                    throw new CancellationException("Subscription unsubscribed");
                 } else {
                     return value.get();
                 }

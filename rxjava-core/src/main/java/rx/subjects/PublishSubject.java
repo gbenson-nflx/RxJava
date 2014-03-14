@@ -1,5 +1,5 @@
 /**
- * Copyright 2013 Netflix, Inc.
+ * Copyright 2014 Netflix, Inc.
  * 
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,24 +15,24 @@
  */
 package rx.subjects;
 
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
 
+import rx.Notification;
 import rx.Observer;
-import rx.Subscription;
-import rx.operators.SafeObservableSubscription;
+import rx.functions.Action1;
+import rx.subjects.SubjectSubscriptionManager.SubjectObserver;
 
 /**
  * Subject that, once and {@link Observer} has subscribed, publishes all subsequent events to the subscriber.
  * <p>
- * <img src="https://raw.github.com/wiki/Netflix/RxJava/images/rx-operators/S.PublishSubject.png">
+ * <img width="640" src="https://raw.github.com/wiki/Netflix/RxJava/images/rx-operators/S.PublishSubject.png">
  * <p>
  * Example usage:
  * <p>
  * <pre> {@code
 
- * ublishSubject<Object> subject = PublishSubject.create();
+ * PublishSubject<Object> subject = PublishSubject.create();
   // observer1 will receive all onNext and onCompleted events
   subject.subscribe(observer1);
   subject.onNext("one");
@@ -46,75 +46,86 @@ import rx.operators.SafeObservableSubscription;
  * 
  * @param <T>
  */
-public class PublishSubject<T> extends Subject<T, T> {
+public final class PublishSubject<T> extends Subject<T, T> {
+
     public static <T> PublishSubject<T> create() {
-        final ConcurrentHashMap<Subscription, Observer<? super T>> observers = new ConcurrentHashMap<Subscription, Observer<? super T>>();
+        final SubjectSubscriptionManager<T> subscriptionManager = new SubjectSubscriptionManager<T>();
+        // set a default value so subscriptions will immediately receive this until a new notification is received
+        final AtomicReference<Notification<T>> lastNotification = new AtomicReference<Notification<T>>();
 
-        OnSubscribeFunc<T> onSubscribe = new OnSubscribeFunc<T>() {
-            @Override
-            public Subscription onSubscribe(Observer<? super T> observer) {
-                final SafeObservableSubscription subscription = new SafeObservableSubscription();
+        OnSubscribe<T> onSubscribe = subscriptionManager.getOnSubscribeFunc(
+                /**
+                 * This function executes at beginning of subscription.
+                 * 
+                 * This will always run, even if Subject is in terminal state.
+                 */
+                new Action1<SubjectObserver<? super T>>() {
 
-                subscription.wrap(new Subscription() {
                     @Override
-                    public void unsubscribe() {
-                        // on unsubscribe remove it from the map of outbound observers to notify
-                        observers.remove(subscription);
+                    public void call(SubjectObserver<? super T> o) {
+                        // nothing onSubscribe unless in terminal state which is the next function
                     }
-                });
+                },
+                /**
+                 * This function executes if the Subject is terminated before subscription occurs.
+                 */
+                new Action1<SubjectObserver<? super T>>() {
 
-                // on subscribe add it to the map of outbound observers to notify
-                observers.put(subscription, observer);
+                    @Override
+                    public void call(SubjectObserver<? super T> o) {
+                        /*
+                         * If we are already terminated, or termination happens while trying to subscribe
+                         * this will be invoked and we emit whatever the last terminal value was.
+                         */
+                        lastNotification.get().accept(o);
+                    }
+                }, null);
 
-                return subscription;
-            }
-
-        };
-
-        return new PublishSubject<T>(onSubscribe, observers);
+        return new PublishSubject<T>(onSubscribe, subscriptionManager, lastNotification);
     }
 
-    private final ConcurrentHashMap<Subscription, Observer<? super T>> observers;
+    private final SubjectSubscriptionManager<T> subscriptionManager;
+    final AtomicReference<Notification<T>> lastNotification;
 
-    protected PublishSubject(OnSubscribeFunc<T> onSubscribe, ConcurrentHashMap<Subscription, Observer<? super T>> observers) {
+    protected PublishSubject(OnSubscribe<T> onSubscribe, SubjectSubscriptionManager<T> subscriptionManager, AtomicReference<Notification<T>> lastNotification) {
         super(onSubscribe);
-        this.observers = observers;
+        this.subscriptionManager = subscriptionManager;
+        this.lastNotification = lastNotification;
     }
 
     @Override
     public void onCompleted() {
-        for (Observer<? super T> observer : snapshotOfValues()) {
-            observer.onCompleted();
-        }
-        observers.clear();
+        subscriptionManager.terminate(new Action1<Collection<SubjectObserver<? super T>>>() {
+
+            @Override
+            public void call(Collection<SubjectObserver<? super T>> observers) {
+                lastNotification.set(Notification.<T> createOnCompleted());
+                for (Observer<? super T> o : observers) {
+                    o.onCompleted();
+                }
+            }
+        });
     }
 
     @Override
-    public void onError(Throwable e) {
-        for (Observer<? super T> observer : snapshotOfValues()) {
-            observer.onError(e);
-        }
-        observers.clear();
+    public void onError(final Throwable e) {
+        subscriptionManager.terminate(new Action1<Collection<SubjectObserver<? super T>>>() {
+
+            @Override
+            public void call(Collection<SubjectObserver<? super T>> observers) {
+                lastNotification.set(Notification.<T>createOnError(e));
+                for (Observer<? super T> o : observers) {
+                    o.onError(e);
+                }
+            }
+        });
+
     }
 
     @Override
-    public void onNext(T args) {
-        for (Observer<? super T> observer : snapshotOfValues()) {
-            observer.onNext(args);
+    public void onNext(T v) {
+        for (Observer<? super T> o : subscriptionManager.rawSnapshot()) {
+            o.onNext(v);
         }
-    }
-
-    /**
-     * Current snapshot of 'values()' so that concurrent modifications aren't included.
-     * 
-     * This makes it behave deterministically in a single-threaded execution when nesting subscribes.
-     * 
-     * In multi-threaded execution it will cause new subscriptions to wait until the following onNext instead
-     * of possibly being included in the current onNext iteration.
-     * 
-     * @return List<Observer<T>>
-     */
-    private Collection<Observer<? super T>> snapshotOfValues() {
-        return new ArrayList<Observer<? super T>>(observers.values());
     }
 }

@@ -16,10 +16,10 @@
 package rx.lang.scala.examples;
 
 import rx.Observable;
+import rx.functions.Action1;
 import rx.lang.scala.examples.Movie;
 import rx.lang.scala.examples.MovieLib;
-import rx.util.functions.Action1;
-import static rx.lang.scala.ImplicitFunctionConversions.toScalaObservable;
+import static rx.lang.scala.JavaConversions.toScalaObservable;
 
 public class MovieLibUsage {
 

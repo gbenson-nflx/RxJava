@@ -1,5 +1,5 @@
 /**
- * Copyright 2013 Netflix, Inc.
+ * Copyright 2014 Netflix, Inc.
  * 
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,12 +15,18 @@
  */
 package rx.operators;
 
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import rx.Observable;
 import rx.Observable.OnSubscribeFunc;
 import rx.Observer;
+import rx.Scheduler;
+import rx.Scheduler.Inner;
 import rx.Subscription;
+import rx.functions.Action1;
+import rx.subscriptions.CompositeSubscription;
 
 /**
  * Returns an Observable that skips the first <code>num</code> items emitted by the source
@@ -34,77 +40,89 @@ import rx.Subscription;
 public final class OperationSkip {
 
     /**
-     * Skips a specified number of contiguous values from the start of a Observable sequence and then returns the remaining values.
-     * 
-     * @param items
-     * @param num
-     * @return the observable sequence starting after a number of skipped values
-     * 
-     * @see <a href="http://msdn.microsoft.com/en-us/library/hh229847(v=vs.103).aspx">Observable.Skip(TSource) Method</a>
-     */
-    public static <T> OnSubscribeFunc<T> skip(final Observable<? extends T> items, final int num) {
-        // wrap in a Observable so that if a chain is built up, then asynchronously subscribed to twice we will have 2 instances of Take<T> rather than 1 handing both, which is not thread-safe.
-        return new OnSubscribeFunc<T>() {
-
-            @Override
-            public Subscription onSubscribe(Observer<? super T> observer) {
-                return new Skip<T>(items, num).onSubscribe(observer);
-            }
-
-        };
-    }
-
-    /**
-     * This class is NOT thread-safe if invoked and referenced multiple times. In other words, don't subscribe to it multiple times from different threads.
-     * <p>
-     * It IS thread-safe from within it while receiving onNext events from multiple threads.
+     * Skip the items after subscription for the given duration.
      * 
      * @param <T>
+     *            the value type
      */
-    private static class Skip<T> implements OnSubscribeFunc<T> {
-        private final int num;
-        private final Observable<? extends T> items;
+    public static final class SkipTimed<T> implements OnSubscribeFunc<T> {
+        final Observable<? extends T> source;
+        final long time;
+        final TimeUnit unit;
+        final Scheduler scheduler;
 
-        Skip(final Observable<? extends T> items, final int num) {
-            this.num = num;
-            this.items = items;
+        public SkipTimed(Observable<? extends T> source, long time, TimeUnit unit, Scheduler scheduler) {
+            this.source = source;
+            this.time = time;
+            this.unit = unit;
+            this.scheduler = scheduler;
         }
 
-        public Subscription onSubscribe(Observer<? super T> observer) {
-            return items.subscribe(new ItemObserver(observer));
+        @Override
+        public Subscription onSubscribe(Observer<? super T> t1) {
+
+            SafeObservableSubscription timer = new SafeObservableSubscription();
+            SafeObservableSubscription data = new SafeObservableSubscription();
+
+            CompositeSubscription csub = new CompositeSubscription(timer, data);
+
+            final SourceObserver<T> so = new SourceObserver<T>(t1, csub);
+            data.wrap(source.subscribe(so));
+            if (!data.isUnsubscribed()) {
+                timer.wrap(scheduler.schedule(so, time, unit));
+            }
+
+            return csub;
         }
 
         /**
-         * Used to subscribe to the 'items' Observable sequence and forward to the actualObserver up to 'num' count.
+         * Observes the source and relays its values once gate turns into true.
+         * 
+         * @param <T>
+         *            the observed value type
          */
-        private class ItemObserver implements Observer<T> {
+        private static final class SourceObserver<T> implements Observer<T>, Action1<Inner> {
+            final AtomicBoolean gate;
+            final Observer<? super T> observer;
+            final Subscription cancel;
 
-            private AtomicInteger counter = new AtomicInteger();
-            private final Observer<? super T> observer;
-
-            public ItemObserver(Observer<? super T> observer) {
+            public SourceObserver(Observer<? super T> observer,
+                    Subscription cancel) {
+                this.gate = new AtomicBoolean();
                 this.observer = observer;
-            }
-
-            @Override
-            public void onCompleted() {
-                observer.onCompleted();
-            }
-
-            @Override
-            public void onError(Throwable e) {
-                observer.onError(e);
+                this.cancel = cancel;
             }
 
             @Override
             public void onNext(T args) {
-                // skip them until we reach the 'num' value
-                if (counter.incrementAndGet() > num) {
+                if (gate.get()) {
                     observer.onNext(args);
                 }
             }
 
-        }
+            @Override
+            public void onError(Throwable e) {
+                try {
+                    observer.onError(e);
+                } finally {
+                    cancel.unsubscribe();
+                }
+            }
 
+            @Override
+            public void onCompleted() {
+                try {
+                    observer.onCompleted();
+                } finally {
+                    cancel.unsubscribe();
+                }
+            }
+
+            @Override
+            public void call(Inner inner) {
+                gate.set(true);
+            }
+
+        }
     }
 }

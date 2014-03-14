@@ -17,50 +17,50 @@ package rx.lang.scala
 
 import java.lang.Exception
 import java.{ lang => jlang }
-import rx.lang.scala._
-import rx.util.functions._
-import scala.collection.Seq
-import rx.lang.scala.subscriptions.Subscription
-import java.{lang => jlang}
 import scala.language.implicitConversions
-import rx.lang.scala.Observer
-import rx.lang.scala.Scheduler
+import scala.collection.Seq
+import rx.functions._
+import rx.lang.scala.JavaConversions._
+
 
 /**
  * These function conversions convert between Scala functions and Rx `Func`s and `Action`s.
  * Most RxScala users won't need them, but they might be useful if one wants to use
  * the `rx.Observable` directly instead of using `rx.lang.scala.Observable` or if one wants
  * to use a Java library taking/returning `Func`s and `Action`s.
+ * This object only contains conversions between functions. For conversions between types,
+ * use [[rx.lang.scala.JavaConversions]].
  */
 object ImplicitFunctionConversions {
-  import language.implicitConversions
+
+//  implicit def schedulerActionToFunc2[T](action: (Scheduler, T) => Subscription): Func2[rx.Scheduler, T, rx.Subscription] with Object {def call(s: rx.Scheduler, t: T): rx.Subscription} =
+//    new Func2[rx.Scheduler, T, rx.Subscription] {
+//      def call(s: rx.Scheduler, t: T): rx.Subscription = {
+//        action(rx.lang.scala.Scheduler(s), t).asJavaSubscription
+//      }
+//    }
 
   implicit def schedulerActionToFunc2[T](action: (Scheduler, T) => Subscription) =
     new Func2[rx.Scheduler, T, rx.Subscription] {
       def call(s: rx.Scheduler, t: T): rx.Subscription = {
-        action(s, t).asJavaSubscription
+        action(Scheduler(s), t).asJavaSubscription
       }
     }
 
-  implicit def toJavaSubscription(s: Subscription): rx.Subscription = s.asJavaSubscription
-  implicit def toScalaSubscription(s: rx.Subscription): Subscription = Subscription(s)
-
-  implicit def scalaSchedulerToJavaScheduler(s: Scheduler): rx.Scheduler = s.asJavaScheduler
-  implicit def javaSchedulerToScalaScheduler(s: rx.Scheduler): Scheduler = Scheduler(s)
-
-  implicit def toJavaObserver[T](s: Observer[T]): rx.Observer[_ >: T] = s.asJavaObserver
-  implicit def toScalaObserver[T](s: rx.Observer[T]): Observer[T] = Observer(s)
-
-  implicit def toJavaObservable[T](s: Observable[T]): rx.Observable[_ <: T] = s.asJavaObservable
-  implicit def toScalaObservable[T](s: rx.Observable[T]): Observable[T] = Observable(s)
-  
   implicit def scalaFunction1ToOnSubscribeFunc[T](f: rx.lang.scala.Observer[T] => Subscription) =
     new rx.Observable.OnSubscribeFunc[T] {
       def onSubscribe(obs: rx.Observer[_ >: T]): rx.Subscription = {
-        f(Observer(obs))
+        f(obs)
       }
     }
 
+  implicit def scalaAction1ToOnSubscribe[T](f: Subscriber[T] => Unit) =
+    new rx.Observable.OnSubscribe[T] {
+      def call(s: rx.Subscriber[_ >: T]): Unit = {
+        f(s)
+      }
+    }
+  
   implicit def scalaByNameParamToFunc0[B](param: => B): Func0[B] =
     new Func0[B] {
       def call(): B = param

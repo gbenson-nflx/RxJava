@@ -12,7 +12,7 @@ dependencies {
 javadoc {
     // we do not want the org.rx.operations package include
     exclude '**/operations/**'
-	
+
     options {
         doclet = "org.benjchristensen.doclet.DocletExclude"
         docletpath = [rootProject.file('./gradle/doclet-exclude.jar')]
@@ -28,6 +28,6 @@ jar {
         instruction 'Bundle-Vendor', 'Netflix'
         instruction 'Bundle-DocURL', 'https://github.com/Netflix/RxJava'
         instruction 'Import-Package', '!org.junit,!junit.framework,!org.mockito.*,*'
+        instruction 'Eclipse-ExtensibleAPI', 'true'
     }
 }
-
