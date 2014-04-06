@@ -21,11 +21,12 @@ import static rx.android.schedulers.AndroidSchedulers.mainThread;
  * that binds to the list adapter.
  */
 public class ListFragmentActivity extends Activity {
+	private static final String TAG = ListFragmentActivity.class.getSimpleName();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setTitle("Lists");
+        setTitle(TAG);
         setContentView(R.layout.list_fragment_activity);
     }
 

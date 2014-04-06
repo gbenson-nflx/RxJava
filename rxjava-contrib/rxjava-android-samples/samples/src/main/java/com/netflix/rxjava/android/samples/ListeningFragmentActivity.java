@@ -8,12 +8,10 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
 import android.widget.Toast;
-
 import rx.Subscriber;
 import rx.Subscription;
 import rx.observables.ConnectableObservable;
 import rx.subscriptions.Subscriptions;
-
 import static rx.android.schedulers.AndroidSchedulers.mainThread;
 
 /**
@@ -31,10 +29,12 @@ import static rx.android.schedulers.AndroidSchedulers.mainThread;
  * {@link rx.android.schedulers.AndroidSchedulers#mainThread()} and {@link rx.Observable#publish()}
  */
 public class ListeningFragmentActivity extends Activity {
+	private static final String TAG = ListeningFragmentActivity.class.getSimpleName();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        setTitle(TAG);
         setContentView(R.layout.listening_fragment_activity);
     }
 

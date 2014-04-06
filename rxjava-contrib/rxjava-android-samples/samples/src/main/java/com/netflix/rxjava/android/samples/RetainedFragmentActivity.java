@@ -30,12 +30,13 @@ import rx.subscriptions.Subscriptions;
  * {@link rx.android.schedulers.AndroidSchedulers#mainThread()} and {@link rx.Observable#cache()}
  */
 public class RetainedFragmentActivity extends Activity {
+	private static final String TAG = RetainedFragmentActivity.class.getSimpleName();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         requestWindowFeature(Window.FEATURE_INDETERMINATE_PROGRESS);
-        setTitle("Fake API call");
+        setTitle(TAG);
         setContentView(R.layout.retained_fragment_activity);
     }
 
