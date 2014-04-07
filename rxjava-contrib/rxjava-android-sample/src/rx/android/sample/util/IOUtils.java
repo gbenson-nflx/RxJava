@@ -7,8 +7,6 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 
-import android.util.Log;
-
 public class IOUtils {
 	private static final String TAG = IOUtils.class.getSimpleName();
 
@@ -25,11 +23,15 @@ public class IOUtils {
 	public static String fetchResponse(String urlString) {
 		URL url;
 		HttpURLConnection urlConnection = null;
-		Log.v(TAG, "Starting Http connection...");
+		LogUtil.v(TAG, "Starting Http connection...");
 		try {
 			url = new URL(urlString);
 			urlConnection = (HttpURLConnection) url.openConnection();
-			return IOUtils.createStringFromStream(urlConnection.getInputStream());
+			
+			InputStream is = urlConnection.getInputStream();
+			String rtn = IOUtils.createStringFromStream(is);
+			is.close();
+			return rtn;
 		}
 		catch (Exception e) {
 			LogUtil.handleException(TAG, e);
@@ -39,7 +41,7 @@ public class IOUtils {
 			if (urlConnection != null) {
 				urlConnection.disconnect();
 			}
-			Log.v(TAG, "Http connection closed");
+			LogUtil.v(TAG, "Http connection closed");
 		}
 	}
 }

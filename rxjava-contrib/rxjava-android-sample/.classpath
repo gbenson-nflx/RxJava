@@ -3,9 +3,22 @@
 	<classpathentry kind="con" path="com.android.ide.eclipse.adt.ANDROID_FRAMEWORK"/>
 	<classpathentry exported="true" kind="con" path="com.android.ide.eclipse.adt.LIBRARIES"/>
 	<classpathentry exported="true" kind="con" path="com.android.ide.eclipse.adt.DEPENDENCIES"/>
-	<classpathentry exported="true" kind="lib" path="/Users/gbenson/RxJava/rxjava-contrib/rxjava-android/build/libs/rxjava-android-0.14.10-SNAPSHOT.jar" sourcepath="/Users/gbenson/RxJava/rxjava-contrib/rxjava-android/build/libs/rxjava-android-0.14.10-SNAPSHOT-sources.jar"/>
-	<classpathentry exported="true" kind="lib" path="/Users/gbenson/RxJava/rxjava-core/build/libs/rxjava-core-0.14.10-SNAPSHOT.jar" sourcepath="/Users/gbenson/RxJava/rxjava-core/build/libs/rxjava-core-0.14.10-SNAPSHOT-sources.jar"/>
 	<classpathentry kind="src" path="src"/>
 	<classpathentry kind="src" path="gen"/>
+	<classpathentry exported="true" kind="lib" path="ext_libs/rxjava-android-0.17.2-SNAPSHOT.jar" sourcepath="ext_libs/rxjava-android-0.17.2-SNAPSHOT-sources.jar">
+		<attributes>
+			<attribute name="javadoc_location" value="jar:platform:/resource/RxAndroidSampleApp/ext_libs/rxjava-android-0.17.2-SNAPSHOT-javadoc.jar!/"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry exported="true" kind="lib" path="ext_libs/rxjava-core-0.17.2-SNAPSHOT.jar" sourcepath="ext_libs/rxjava-core-0.17.2-SNAPSHOT-sources.jar">
+		<attributes>
+			<attribute name="javadoc_location" value="jar:platform:/resource/RxAndroidSampleApp/ext_libs/rxjava-core-0.17.2-SNAPSHOT-javadoc.jar!/"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry exported="true" kind="lib" path="ext_libs/gson-2.2.4.jar" sourcepath="ext_libs/gson-2.2.4-sources.jar">
+		<attributes>
+			<attribute name="javadoc_location" value="jar:platform:/resource/RxAndroidSampleApp/ext_libs/gson-2.2.4-javadoc.jar!/"/>
+		</attributes>
+	</classpathentry>
 	<classpathentry kind="output" path="bin/classes"/>
 </classpath>

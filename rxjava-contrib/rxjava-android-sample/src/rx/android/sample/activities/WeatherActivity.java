@@ -9,20 +9,17 @@ import retrofit.RestAdapter;
 import retrofit.http.GET;
 import retrofit.http.Query;
 import rx.Observable;
-import rx.Observer;
 import rx.Subscription;
-import rx.android.concurrency.AndroidSchedulers;
 import rx.android.sample.R;
 import rx.android.sample.model.Observers;
 import rx.android.sample.model.WeatherData;
-import rx.android.sample.util.ThreadUtils;
-import rx.concurrency.Schedulers;
-import rx.subscriptions.Subscriptions;
-import rx.util.functions.Func1;
+import rx.android.sample.util.LogUtil;
+import rx.android.schedulers.AndroidSchedulers;
+import rx.functions.Func1;
+import rx.schedulers.Schedulers;
 import android.app.ListActivity;
 import android.content.res.Resources;
 import android.os.Bundle;
-import android.util.Log;
 import android.util.TypedValue;
 import android.view.View;
 import android.view.ViewGroup;
@@ -38,10 +35,12 @@ public class WeatherActivity extends ListActivity {
 	private ListView listView;
 	private WeatherAdapter adapter;
 
+	private Subscription subscription;
+
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
-    	Log.v(TAG, "Num threads: " + Schedulers.threadPoolForIO().degreeOfParallelism());
+    	LogUtil.v(TAG, "Num threads: " + Schedulers.io().degreeOfParallelism());
 
 		listView = new ListView(this);
 		listView.setId(android.R.id.list);
@@ -54,17 +53,23 @@ public class WeatherActivity extends ListActivity {
 				"San Francisco", "Sydney", "London", "foobar"));
 	}
 
-	private void getWeatherForCities(List<String> cities) {
-		Observable<WeatherData> obs = Observable.from(cities)
-		        .mapMany(new Func1<String, Observable<WeatherData>>() {
-		            @Override
-		            public Observable<WeatherData> call(String s) {
-		                return ApiManager.getWeatherData(s);
-		            }
-		        })
-		        .observeOn(AndroidSchedulers.mainThread());
+	@Override
+	protected void onDestroy() {
+		subscription.unsubscribe();
+		super.onDestroy();
+	}
 
-		obs.subscribe(new Observers.LoggingObserver<WeatherData>(TAG) {
+	private void getWeatherForCities(List<String> cities) {
+		Observable<WeatherData> observable = Observable.from(cities)
+	        .flatMap(new Func1<String, Observable<WeatherData>>() {
+	            @Override
+	            public Observable<WeatherData> call(String s) {
+	                return ApiManager.getWeather(s);
+	            }
+	        })
+	        .observeOn(AndroidSchedulers.mainThread());
+
+		subscription = observable.subscribe(new Observers.LoggingObserver<WeatherData>(TAG) {
 			@Override
 			public void onNext(WeatherData data) {
 				super.onNext(data);
@@ -100,8 +105,8 @@ public class WeatherActivity extends ListActivity {
 				int p = (int)r.getDimension(R.dimen.content_padding);
 				tv.setPadding(p, p, p, p);
 				tv.setTextSize(TypedValue.applyDimension(
-						TypedValue.COMPLEX_UNIT_DIP,
-						16,
+						TypedValue.COMPLEX_UNIT_SP,
+						8,
 						r.getDisplayMetrics()));
 
 				convertView = tv;
@@ -112,39 +117,23 @@ public class WeatherActivity extends ListActivity {
 		}
 	}
 
+	/**
+	 * Retrofit: https://github.com/square/retrofit
+	 */
 	public static class ApiManager {
-
 	    private interface ApiManagerService {
 	        @GET("/weather")
-	        WeatherData getWeather(@Query("q") String place, @Query("units") String units);
+	        Observable<WeatherData> getWeather(@Query("q") String place, @Query("units") String units);
 	    }
 
 	    private static final RestAdapter restAdapter = new RestAdapter.Builder()
-	        .setServer("http://api.openweathermap.org/data/2.5")
+	        .setEndpoint("http://api.openweathermap.org/data/2.5")
 	        .build();
 
 	    private static final ApiManagerService apiManager = restAdapter.create(ApiManagerService.class);
 
-	    public static Observable<WeatherData> getWeatherData(final String city) {
-	        return Observable.create(new Observable.OnSubscribeFunc<WeatherData>() {
-	            @Override
-	            public Subscription onSubscribe(Observer<? super WeatherData> observer) {
-	            	ThreadUtils.assertNotOnMain();
-	                try {
-	                	Log.v(TAG, "I'm sleepy... " + Thread.currentThread().getName());
-	                	Thread.sleep(5000);
-	                	Log.v(TAG, "Making remote call...");
-	                    observer.onNext(apiManager.getWeather(city, "metric"));
-	                	Log.v(TAG, "Request completed");
-	                    observer.onCompleted();
-	                }
-	                catch (Exception e) {
-	                    observer.onError(e);
-	                }
-
-	                return Subscriptions.empty();
-	            }
-	        }).subscribeOn(Schedulers.threadPoolForIO());
+	    public static Observable<WeatherData> getWeather(final String city) {
+        	return apiManager.getWeather(city, "metric");
 	    }
 	}
 }

@@ -1,17 +1,21 @@
 package rx.android.sample.activities;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
 import rx.Observable;
-import rx.Observable.OnSubscribeFunc;
+import rx.Observable.OnSubscribe;
 import rx.Observer;
-import rx.Subscription;
-import rx.android.concurrency.AndroidSchedulers;
+import rx.Subscriber;
 import rx.android.sample.model.Observers.LoggingObserver;
-import rx.concurrency.Schedulers;
-import rx.subscriptions.Subscriptions;
-import rx.util.functions.Func1;
+import rx.android.sample.util.LogUtil;
+import rx.android.schedulers.AndroidSchedulers;
+import rx.functions.Func1;
+import rx.operators.OnSubscribeFromIterable;
+import rx.schedulers.Schedulers;
 import android.app.Activity;
 import android.os.Bundle;
-import android.util.Log;
 import android.widget.TextView;
 
 public class SimpleRxActivity extends Activity {
@@ -24,44 +28,42 @@ public class SimpleRxActivity extends Activity {
 		TextView tv = new TextView(this);
 		int p = 16;
 		tv.setPadding(p, p, p, p);
-		tv.setText("See logcat for output, tag: " + TAG);
+		tv.setText("See logcat for output");
 		setContentView(tv);
 
-		runSimpleIntObserver();
 		runSimpleStringObserver();
+		runSimpleIntObserver();
 	}
 
-	private final OnSubscribeFunc<Integer> intGeneraterFunc = new OnSubscribeFunc<Integer>() {
-		@Override
-		public Subscription onSubscribe(final Observer<? super Integer> observer) {
-			Log.v(TAG, getThreadName() + "onSubscribe()");
-			try {
-				int i;
-				for (i = 0; i < 3; i++) {
-					observer.onNext(i);
+	private void runSimpleStringObserver() {
+		String[] names = { "alpha", "beta", "charlie" };
+		Observable
+			.from(names)
+			.subscribe(new Observer<String>() {
+				@Override
+				public void onNext(String s) {
+					LogUtil.v(TAG, "Hello " + s);
 				}
-
-				if (i > 0) {
-					throw new IllegalStateException("Dummy error");
+	
+				@Override
+				public void onCompleted() {
+					LogUtil.v(TAG, "Complete");
 				}
-
-				observer.onCompleted();
-			}
-			catch(Exception e) {
-				observer.onError(e);
-			}
-
-            return Subscriptions.empty();
-		}
-	};
+	
+				@Override
+				public void onError(Throwable e) {
+					LogUtil.v(TAG, "Error: " + e);
+				}
+			});
+	}
 
 	private void runSimpleIntObserver() {
 		Observable
-			.create(intGeneraterFunc)
+			.create(intIteratorObs)
 			.map(new Func1<Integer, Integer>() {
 				@Override
 				public Integer call(Integer i) {
-					Log.v(TAG, getThreadName() + "map call, input: " + i);
+					LogUtil.v(TAG, "map call, input: " + i);
 					return i * 2;
 				}
 			})
@@ -70,29 +72,29 @@ public class SimpleRxActivity extends Activity {
 			.subscribe(new LoggingObserver<Integer>(TAG));
 	}
 
-	private void runSimpleStringObserver() {
-		String[] names = {"alpha", "beta", "charlie"};
-		Observable
-			.from(names)
-			.subscribe(new Observer<String>() {
-				@Override
-				public void onNext(String s) {
-					Log.v(TAG, getThreadName() + "Hello " + s);
+	private final List<Integer> intList = new ArrayList<Integer>(Arrays.asList(0, 1, 2));
+	private final OnSubscribeFromIterable<Integer> intIteratorObs = new OnSubscribeFromIterable<Integer>(intList);
+
+	private final OnSubscribe<Integer> intGeneraterFunc = new OnSubscribe<Integer>() {
+		@Override
+		public void call(Subscriber<? super Integer> subscriber) {
+			LogUtil.v(TAG, "onSubscribe()");
+			try {
+				int i;
+				for (i = 0; i < 3; i++) {
+					LogUtil.v(TAG, "Generating number: " + i);
+					subscriber.onNext(i);
 				}
 
-				@Override
-				public void onCompleted() {
-					Log.v(TAG, getThreadName() + "Complete");
+				if (i > 0) {
+					LogUtil.v(TAG, "Throwing runtime exception...");
+					throw new IllegalStateException("Dummy error");
 				}
 
-				@Override
-				public void onError(Throwable e) {
-					Log.v(TAG, getThreadName() + "Error: " + e);
-				}
-			});
-	}
-
-	private String getThreadName() {
-		return "[" + Thread.currentThread().getName() + "]: ";
-	}
+				subscriber.onCompleted();
+			} catch (RuntimeException e) {
+				subscriber.onError(e);
+			}
+		}
+	};
 }

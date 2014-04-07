@@ -4,7 +4,7 @@ import java.util.List;
 
 public class WeatherData {
 
-    public Coordinates coord;
+	public Coordinates coord;
     public Local sys;
     public List<Weather> weather;
     public String base;

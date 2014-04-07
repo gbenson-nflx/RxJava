@@ -1,19 +1,18 @@
 package rx.android.sample.activities;
 
 import rx.Observable;
-import rx.Observable.OnSubscribeFunc;
+import rx.Observable.OnSubscribe;
 import rx.Observer;
+import rx.Subscriber;
 import rx.Subscription;
-import rx.android.concurrency.AndroidSchedulers;
-import rx.android.observables.AndroidObservable;
+import rx.android.sample.model.Observers.LoggingObserver;
 import rx.android.sample.util.IOUtils;
 import rx.android.sample.util.LogUtil;
 import rx.android.sample.util.ThreadUtils;
-import rx.concurrency.Schedulers;
-import rx.subscriptions.Subscriptions;
+import rx.android.schedulers.AndroidSchedulers;
+import rx.schedulers.Schedulers;
 import android.app.Activity;
 import android.os.Bundle;
-import android.util.Log;
 import android.view.View;
 import android.view.View.OnClickListener;
 import android.widget.TextView;
@@ -22,6 +21,8 @@ public class DownloadActivity extends Activity {
 	protected static final String TAG = DownloadActivity.class.getSimpleName();
 
 	private TextView tv;
+
+	private Subscription subscription;
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
@@ -37,20 +38,16 @@ public class DownloadActivity extends Activity {
 			public void onClick(View v) {
 				tv.setEnabled(false);
 
-				AndroidObservable
-					.fromActivity(
-						DownloadActivity.this,
-						createDownloadObservable().subscribeOn(Schedulers.threadPoolForIO()))
-					.observeOn(AndroidSchedulers.mainThread())
+				subscription = createDownloadObservable()
 					.subscribe(new Observer<String>() {
 						@Override
 						public void onNext(String val) {
-							Log.v(TAG, "onNext: " + val);
+							LogUtil.v(TAG, "onNext: " + val);
 						}
 
 						@Override
 						public void onCompleted() {
-							Log.v(TAG, "onCompleted");
+							LogUtil.v(TAG, "onCompleted");
 							tv.setEnabled(true);
 						}
 
@@ -63,22 +60,107 @@ public class DownloadActivity extends Activity {
 			}
 		});
 
+//		subscription = ViewObservable
+//			.clicks(tv, false)
+//			.map(new Func1<View, View>() {
+//				@Override
+//				public View call(final View view) {
+//					LogUtil.v(TAG, "Map, view: " + view);
+//
+//					view.setEnabled(false);
+//					createDownloadObservable()
+//						.subscribe(new Observer<String>() {
+//							@Override
+//							public void onNext(String val) {
+//								LogUtil.v(TAG, "onNext: " + val);
+//							}
+//	
+//							@Override
+//							public void onCompleted() {
+//								LogUtil.v(TAG, "onCompleted");
+//								view.setEnabled(true);
+//							}
+//	
+//							@Override
+//							public void onError(Throwable e) {
+//								LogUtil.handleException(TAG, e);
+//								view.setEnabled(true);
+//							}
+//						});
+//					return view;
+//				}
+//			})
+//			.subscribe();
+
+//		ViewObservable
+//			.clicks(tv, false)
+//			.map(new Func1<View, View>() {
+//				@Override
+//				public View call(final View view) {
+//					view.setEnabled(false);
+//					subscription = createDownloadObservable()
+//						.subscribe(new EnableViewObserver<String>(TAG, tv));
+//					return view;
+//				}
+//			})
+//			.subscribe();
+
 		setContentView(tv);
 	}
 
 	public Observable<String> createDownloadObservable() {
-	    return Observable.create(new OnSubscribeFunc<String>() {
-	        @Override
-	        public Subscription onSubscribe(Observer<? super String> observer) {
+	    return Observable.create(new OnSubscribe<String>() {
+			@Override
+			public void call(Subscriber<? super String> subscriber) {
 	        	ThreadUtils.assertNotOnMain();
 	            try {
-	                observer.onNext(IOUtils.fetchResponse("http://en.wikipedia.org/wiki/tiger"));
-	                observer.onCompleted();
+	            	LogUtil.v(TAG, "Starting http operation");
+	            	Thread.sleep(3000);
+	            	subscriber.onNext(IOUtils.fetchResponse("http://en.wikipedia.org/wiki/tiger"));
+	            	subscriber.onCompleted();
 	            } catch (Exception e) {
-	                observer.onError(e);
+	            	subscriber.onError(e);
 	            }
-	            return Subscriptions.empty();
-	        }
-	    });
+			}
+	    })
+		.subscribeOn(Schedulers.io())
+		.observeOn(AndroidSchedulers.mainThread());
+	}
+
+	@Override
+	protected void onDestroy() {
+		if (subscription != null) {
+			LogUtil.v(TAG, "Unsubscribing...");
+			subscription.unsubscribe();
+		}
+		super.onDestroy();
+	}
+
+	static class EnableViewObserver<T> extends LoggingObserver<T> {
+
+		private final View view;
+
+		public EnableViewObserver(String tag, View view) {
+			super(tag);
+			this.view = view;
+		}
+
+		@Override
+		public void onCompleted() {
+			super.onCompleted();
+			LogUtil.v(TAG, "Re-enabling view: " + view);
+			view.setEnabled(true);
+		}
+
+		@Override
+		public void onError(Throwable e) {
+			super.onError(e);
+			view.setEnabled(true);
+		}
+
+		@Override
+		public void onNext(T t) {
+			super.onNext(t);
+		}
 	}
 }

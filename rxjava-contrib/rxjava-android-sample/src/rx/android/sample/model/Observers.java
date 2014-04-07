@@ -1,8 +1,8 @@
 package rx.android.sample.model;
 
 import rx.Observer;
+import rx.android.sample.util.LogUtil;
 import rx.android.sample.util.ThreadUtils;
-import android.util.Log;
 
 public class Observers {
 
@@ -19,19 +19,19 @@ public class Observers {
 		@Override
 		public void onNext(T val) {
 			ThreadUtils.assertOnMain();
-			Log.v(logTag, "onNext: " + val);
+			LogUtil.v(logTag, "onNext: " + val);
 		}
 
 		@Override
 		public void onCompleted() {
 			ThreadUtils.assertOnMain();
-			Log.v(logTag, "onCompleted");
+			LogUtil.v(logTag, "onCompleted");
 		}
 
 		@Override
 		public void onError(Throwable e) {
 			ThreadUtils.assertOnMain();
-			Log.v(logTag, "onError: " + e);
+			LogUtil.v(logTag, "onError: " + e);
 		}
 	}
 }

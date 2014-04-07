@@ -6,21 +6,19 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import rx.Observable;
-import rx.Observable.OnSubscribeFunc;
+import rx.Observable.OnSubscribe;
 import rx.Observer;
+import rx.Subscriber;
 import rx.Subscription;
-import rx.android.concurrency.AndroidSchedulers;
 import rx.android.observables.AndroidObservable;
 import rx.android.sample.R;
 import rx.android.sample.util.LogUtil;
 import rx.android.sample.util.ThreadUtils;
-import rx.concurrency.Schedulers;
-import rx.operators.SafeObservableSubscription;
-import rx.subscriptions.Subscriptions;
+import rx.android.schedulers.AndroidSchedulers;
+import rx.schedulers.Schedulers;
 import android.app.Activity;
 import android.os.Bundle;
 import android.os.Environment;
-import android.util.Log;
 import android.view.View;
 import android.view.View.OnClickListener;
 import android.view.ViewGroup;
@@ -38,7 +36,7 @@ public class FileSystemActivity extends Activity {
 	private Button cancelButton;
 	private ListView listView;
 
-	private SafeObservableSubscription subscription;
+	private Subscription subscription;
 	private BaseAdapter adapter;
 
 	private final List<String> data = new ArrayList<String>();
@@ -47,6 +45,34 @@ public class FileSystemActivity extends Activity {
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.main);
+
+		subscription = AndroidObservable
+				.bindActivity(this, filesObservable)
+				.buffer(1000, TimeUnit.MILLISECONDS)
+				.observeOn(AndroidSchedulers.mainThread()) // Current thread by default but we're being explicit.
+				.subscribe(new Observer<List<String>>() {
+					@Override
+					public void onNext(List<String> values) {
+						ThreadUtils.assertOnMain();
+						LogUtil.v(TAG, "onNext, " + values.size() + " items");
+						data.addAll(values);
+						adapter.notifyDataSetChanged();
+					}
+
+					@Override
+					public void onCompleted() {
+						ThreadUtils.assertOnMain();
+						LogUtil.v(TAG, "onCompleted");
+						cancelButton.setEnabled(false);
+					}
+
+					@Override
+					public void onError(Throwable e) {
+						ThreadUtils.assertOnMain();
+						LogUtil.handleException(TAG, e);
+						cancelButton.setEnabled(false);
+					}
+				});
 
 		adapter = new DataListAdapter();
 		listView = (ListView) findViewById(android.R.id.list);
@@ -61,48 +87,20 @@ public class FileSystemActivity extends Activity {
 				cancelButton.setEnabled(false);
 			}
 		});
-
-		Observable<String> filesObservable = Observable
-			.create(externalStorageFileFunc)
-			.subscribeOn(Schedulers.threadPoolForComputation());
-
-		subscription = (SafeObservableSubscription) AndroidObservable
-			.fromActivity(this, filesObservable)
-			.buffer(500, TimeUnit.MILLISECONDS)
-			.observeOn(AndroidSchedulers.mainThread()) // Current thread by default but we're being explicit.
-			.subscribe(new Observer<List<String>>() {
-				@Override
-				public void onNext(List<String> values) {
-					ThreadUtils.assertOnMain();
-					Log.v(TAG, "onNext, " + values.size() + " items");
-					data.addAll(values);
-					adapter.notifyDataSetChanged();
-				}
-
-				@Override
-				public void onCompleted() {
-					ThreadUtils.assertOnMain();
-					Log.v(TAG, "onCompleted");
-					cancelButton.setEnabled(false);
-				}
-
-				@Override
-				public void onError(Throwable e) {
-					ThreadUtils.assertOnMain();
-					LogUtil.handleException(TAG, e);
-					cancelButton.setEnabled(false);
-				}
-			});
+	}
+	
+	@Override
+	protected void onDestroy() {
+		subscription.unsubscribe();
+		super.onDestroy();
 	}
 
-	private final OnSubscribeFunc<String> externalStorageFileFunc = new OnSubscribeFunc<String>() {
+	private final OnSubscribe<String> externalStorageFileFunc = new OnSubscribe<String>() {
 		@Override
-		public Subscription onSubscribe(Observer<? super String> observer) {
+		public void call(Subscriber<? super String> subscriber) {
 			ThreadUtils.assertNotOnMain();
-
-			getAllFiles(observer, Environment.getExternalStorageDirectory());
-			observer.onCompleted();
-			return Subscriptions.empty();
+			getAllFiles(subscriber, Environment.getExternalStorageDirectory());
+			subscriber.onCompleted();
 		}
 
 		private void getAllFiles(Observer<? super String> observer, File candidateDir) {
@@ -110,14 +108,14 @@ public class FileSystemActivity extends Activity {
 				return;
 			}
 
-			File[] files = candidateDir.listFiles();
+			File[] files = candidateDir.listFiles();  // Returns files in a directory
 			if (files == null) {
 				observer.onNext(candidateDir.getAbsolutePath());
 
 				try {
-					Thread.sleep(10); // Fake delay to simulate slower operation
+					Thread.sleep(10); // Fake a delay to simulate slower operation
 				} catch (InterruptedException e) {
-					e.printStackTrace();
+					LogUtil.handleException(TAG, e);
 				}
 			}
 			else {
@@ -127,6 +125,10 @@ public class FileSystemActivity extends Activity {
 			}
 		}
 	};
+
+	private final Observable<String> filesObservable = Observable
+			.create(externalStorageFileFunc)
+			.subscribeOn(Schedulers.io());
 
 	private class DataListAdapter extends BaseAdapter {
 
