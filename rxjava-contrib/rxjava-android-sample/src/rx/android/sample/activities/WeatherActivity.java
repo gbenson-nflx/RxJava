@@ -135,5 +135,26 @@ public class WeatherActivity extends ListActivity {
 	    public static Observable<WeatherData> getWeather(final String city) {
         	return apiManager.getWeather(city, "metric");
 	    }
+
+//	    public static Observable<WeatherData> getWeatherData(final String city) {
+//	        return Observable.create(new OnSubscribe<WeatherData>() {
+//				@Override
+//				public void call(Subscriber<? super WeatherData> subscriber) {
+//	            	ThreadUtils.assertNotOnMain();
+//	                try {
+//	                	LogUtil.v(TAG, "I'm sleepy... ");
+//	                	Thread.sleep(5000);
+//	                	LogUtil.v(TAG, "Making remote call...");
+//	                	subscriber.onNext(apiManager.getWeather(city, "metric"));
+//	                	LogUtil.v(TAG, "Request completed");
+//	                	subscriber.onCompleted();
+//	                }
+//	                catch (Exception e) {
+//	                	subscriber.onError(e);
+//	                }
+//				}
+//	        })
+//	        .subscribeOn(Schedulers.io());
+//	    }
 	}
 }
