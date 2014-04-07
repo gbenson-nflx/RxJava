@@ -136,31 +136,22 @@ public class DownloadActivity extends Activity {
 		super.onDestroy();
 	}
 
-	static class EnableViewObserver<T> extends LoggingObserver<T> {
+	class EnableViewObserver<T> extends LoggingObserver<T> {
 
-		private final View view;
-
-		public EnableViewObserver(String tag, View view) {
-			super(tag);
-			this.view = view;
+		public EnableViewObserver(String logTag) {
+			super(logTag);
 		}
 
 		@Override
 		public void onCompleted() {
 			super.onCompleted();
-			LogUtil.v(TAG, "Re-enabling view: " + view);
-			view.setEnabled(true);
+			tv.setEnabled(true);
 		}
 
 		@Override
 		public void onError(Throwable e) {
 			super.onError(e);
-			view.setEnabled(true);
-		}
-
-		@Override
-		public void onNext(T t) {
-			super.onNext(t);
+			tv.setEnabled(true);
 		}
 	}
 }
