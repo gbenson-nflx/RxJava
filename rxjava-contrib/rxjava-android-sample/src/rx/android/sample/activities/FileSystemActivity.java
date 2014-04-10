@@ -49,7 +49,7 @@ public class FileSystemActivity extends Activity {
 		subscription = AndroidObservable
 				.bindActivity(this, filesObservable)
 				.buffer(1000, TimeUnit.MILLISECONDS)
-				.observeOn(AndroidSchedulers.mainThread()) // Current thread by default but we're being explicit.
+				.observeOn(AndroidSchedulers.mainThread())
 				.subscribe(new Observer<List<String>>() {
 					@Override
 					public void onNext(List<String> values) {
