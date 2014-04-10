@@ -113,7 +113,7 @@ public class FileSystemActivity extends Activity {
 				observer.onNext(candidateDir.getAbsolutePath());
 
 				try {
-					Thread.sleep(10); // Fake a delay to simulate slower operation
+					Thread.sleep(450); // Fake a delay to simulate slower operation
 				} catch (InterruptedException e) {
 					LogUtil.handleException(TAG, e);
 				}
