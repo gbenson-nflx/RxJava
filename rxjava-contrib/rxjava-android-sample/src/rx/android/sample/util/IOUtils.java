@@ -23,7 +23,7 @@ public class IOUtils {
 	public static String fetchResponse(String urlString) {
 		URL url;
 		HttpURLConnection urlConnection = null;
-		LogUtil.v(TAG, "Starting Http connection...");
+		LogUtil.v(TAG, "Starting Http connection");
 		try {
 			url = new URL(urlString);
 			urlConnection = (HttpURLConnection) url.openConnection();

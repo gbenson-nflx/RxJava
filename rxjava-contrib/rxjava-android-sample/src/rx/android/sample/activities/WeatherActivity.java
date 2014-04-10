@@ -65,6 +65,7 @@ public class WeatherActivity extends ListActivity {
 	            @Override
 	            public Observable<WeatherData> call(String s) {
 	                return ApiManager.getWeather(s);
+//	            	return ApiManager.getWeatherData(s);
 	            }
 	        })
 	        .observeOn(AndroidSchedulers.mainThread());
@@ -124,6 +125,7 @@ public class WeatherActivity extends ListActivity {
 	    private interface ApiManagerService {
 	        @GET("/weather")
 	        Observable<WeatherData> getWeather(@Query("q") String place, @Query("units") String units);
+//	        WeatherData getWeather(@Query("q") String place, @Query("units") String units);
 	    }
 
 	    private static final RestAdapter restAdapter = new RestAdapter.Builder()

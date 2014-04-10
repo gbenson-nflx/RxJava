@@ -5,7 +5,6 @@ import rx.Observable.OnSubscribe;
 import rx.Observer;
 import rx.Subscriber;
 import rx.Subscription;
-import rx.android.sample.model.Observers.LoggingObserver;
 import rx.android.sample.util.IOUtils;
 import rx.android.sample.util.LogUtil;
 import rx.android.sample.util.ThreadUtils;
@@ -18,7 +17,7 @@ import android.view.View.OnClickListener;
 import android.widget.TextView;
 
 public class DownloadActivity extends Activity {
-	protected static final String TAG = DownloadActivity.class.getSimpleName();
+	private static final String TAG = DownloadActivity.class.getSimpleName();
 
 	private TextView tv;
 
@@ -33,6 +32,7 @@ public class DownloadActivity extends Activity {
 		tv = new TextView(this);
 		tv.setPadding(p, p, p, p);
 		tv.setText("Tap here to start download");
+		
 		tv.setOnClickListener(new OnClickListener() {
 			@Override
 			public void onClick(View v) {
@@ -99,7 +99,22 @@ public class DownloadActivity extends Activity {
 //				public View call(final View view) {
 //					view.setEnabled(false);
 //					subscription = createDownloadObservable()
-//						.subscribe(new EnableViewObserver<String>(TAG, tv));
+//						.subscribe(new EnableViewObserver<String>(tv));
+//					return view;
+//				}
+//			})
+//			.subscribe();
+
+//		ViewObservable
+//			.clicks(tv, false)
+//			.map(new Func1<View, View>() {
+//				@Override
+//				public View call(final View view) {
+//					view.setEnabled(false);
+//					ConnectableObservable<String> connectable = createDownloadObservable().publish();
+//					connectable.subscribe(new LoggingObserver<String>(TAG));
+//					connectable.subscribe(new EnableViewObserver<String>(tv));
+//					subscription = connectable.connect();
 //					return view;
 //				}
 //			})
@@ -116,7 +131,9 @@ public class DownloadActivity extends Activity {
 	            try {
 	            	LogUtil.v(TAG, "Starting http operation");
 	            	Thread.sleep(3000);
-	            	subscriber.onNext(IOUtils.fetchResponse("http://en.wikipedia.org/wiki/tiger"));
+	            	subscriber.onNext(
+	            			IOUtils.fetchResponse("http://en.wikipedia.org/wiki/tiger")
+	            					.substring(0, 50));
 	            	subscriber.onCompleted();
 	            } catch (Exception e) {
 	            	subscriber.onError(e);
@@ -130,28 +147,37 @@ public class DownloadActivity extends Activity {
 	@Override
 	protected void onDestroy() {
 		if (subscription != null) {
-			LogUtil.v(TAG, "Unsubscribing...");
+			LogUtil.v(TAG, "Unsubscribing");
 			subscription.unsubscribe();
 		}
 		super.onDestroy();
 	}
 
-	class EnableViewObserver<T> extends LoggingObserver<T> {
+	static class EnableViewObserver<T> implements Observer<T> {
+		private static final String TAG = EnableViewObserver.class.getSimpleName();
 
-		public EnableViewObserver(String logTag) {
-			super(logTag);
+		private final View view;
+
+		public EnableViewObserver(View v) {
+			this.view = v;
 		}
 
 		@Override
 		public void onCompleted() {
-			super.onCompleted();
-			tv.setEnabled(true);
+			LogUtil.v(TAG, "Enabling view");
+			view.setEnabled(true);
 		}
 
 		@Override
 		public void onError(Throwable e) {
-			super.onError(e);
-			tv.setEnabled(true);
+			LogUtil.v(TAG, "Enabling view");
+			view.setEnabled(true);
+		}
+
+		@Override
+		public void onNext(T t) {
+			LogUtil.v(TAG, "got onNext but doing nothing");
+			//nop
 		}
 	}
 }

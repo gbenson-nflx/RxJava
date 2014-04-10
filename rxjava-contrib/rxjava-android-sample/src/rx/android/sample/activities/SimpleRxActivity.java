@@ -5,9 +5,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import rx.Observable;
-import rx.Observable.OnSubscribe;
 import rx.Observer;
-import rx.Subscriber;
 import rx.android.sample.model.Observers.LoggingObserver;
 import rx.android.sample.util.LogUtil;
 import rx.android.schedulers.AndroidSchedulers;
@@ -44,12 +42,12 @@ public class SimpleRxActivity extends Activity {
 				public void onNext(String s) {
 					LogUtil.v(TAG, "Hello " + s);
 				}
-	
+
 				@Override
 				public void onCompleted() {
 					LogUtil.v(TAG, "Complete");
 				}
-	
+
 				@Override
 				public void onError(Throwable e) {
 					LogUtil.v(TAG, "Error: " + e);
@@ -75,26 +73,26 @@ public class SimpleRxActivity extends Activity {
 	private final List<Integer> intList = new ArrayList<Integer>(Arrays.asList(0, 1, 2));
 	private final OnSubscribeFromIterable<Integer> intIteratorObs = new OnSubscribeFromIterable<Integer>(intList);
 
-	private final OnSubscribe<Integer> intGeneraterFunc = new OnSubscribe<Integer>() {
-		@Override
-		public void call(Subscriber<? super Integer> subscriber) {
-			LogUtil.v(TAG, "onSubscribe()");
-			try {
-				int i;
-				for (i = 0; i < 3; i++) {
-					LogUtil.v(TAG, "Generating number: " + i);
-					subscriber.onNext(i);
-				}
-
-				if (i > 0) {
-					LogUtil.v(TAG, "Throwing runtime exception...");
-					throw new IllegalStateException("Dummy error");
-				}
-
-				subscriber.onCompleted();
-			} catch (RuntimeException e) {
-				subscriber.onError(e);
-			}
-		}
-	};
+//	private final OnSubscribe<Integer> intGeneraterFunc = new OnSubscribe<Integer>() {
+//		@Override
+//		public void call(Subscriber<? super Integer> subscriber) {
+//			LogUtil.v(TAG, "onSubscribe()");
+//			try {
+//				int i;
+//				for (i = 0; i < 3; i++) {
+//					LogUtil.v(TAG, "Generating number: " + i);
+//					subscriber.onNext(i);
+//				}
+//
+//				if (i > 0) {
+//					LogUtil.v(TAG, "Throwing runtime exception");
+//					throw new IllegalStateException("Dummy error");
+//				}
+//
+//				subscriber.onCompleted();
+//			} catch (RuntimeException e) {
+//				subscriber.onError(e);
+//			}
+//		}
+//	};
 }
